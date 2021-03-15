@@ -3,6 +3,11 @@ package com.aldimbilet.website.controller;
 import java.util.List;
 import java.util.Random;
 import javax.servlet.http.HttpServletRequest;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +15,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import com.aldimbilet.pojos.ActivityPojo;
 import com.aldimbilet.pojos.BasketPojo;
@@ -28,7 +34,7 @@ import lombok.AllArgsConstructor;
 // @AllArgsConstructor creates a constructor with the properties
 // Spring injects them as beans
 @AllArgsConstructor
-public class MikroServiceClientController
+public class MikroServiceSagaController
 {
 	private UserClient userClient;
 
@@ -36,11 +42,66 @@ public class MikroServiceClientController
 
 	private PaymentClient paymentClient;
 
+	// See RabbitConfig
+	private RabbitTemplate template;
+
+	// I have added the names here to make it easy to track inside the code
+	@Value("emailReceiptTopic")
+	private TopicExchange emailReceiptTopic;
+
+	// I have added the names here to make it easy to track inside the code
+	@Value("emailCancelationDirect")
+	private DirectExchange emailCancelationDirect;
+
 	@GetMapping(path = "login")
 	public ModelAndView login()
 	{
 		ModelAndView index = new ModelAndView("login");
 		return index;
+	}
+
+	@PostMapping(path = "login")
+	public ModelAndView login(HttpServletRequest req)
+	{
+		String username = req.getParameter("username");
+		String password = req.getParameter("password");
+		// Quick and dirty way of creating the necessary object for spring security
+		// This is basically a json object, could have been mapped from spring security User class to json with jackson
+		// I'm lazy
+		String user = "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}";
+		System.err.println("Logging in");
+		String token = "";
+		try
+		{
+			// the response is determined by userservice
+			// you will implement some logic according to the return value
+			// it could be some entity inside the responseentity or a whole other data structure of your imagination
+			// just make sure this communication is documented somewhere
+			ResponseEntity<String> responseEntity = userClient.login(user);
+			token = responseEntity.getBody();
+			String bearer = token.substring(token.indexOf(" ") + 1);
+			user = token.substring(token.indexOf("(") + 1, token.indexOf(")"));
+			req.getSession().setAttribute(SessionConstants.BEARER, bearer);
+			req.getSession().setAttribute(SessionConstants.USERNAME, user);
+			return new ModelAndView("redirect:/index");
+		}
+		catch (FeignException e)
+		{
+			// Each exception must mean something different
+			// Throw them carefully from the services
+			if (e.status() == HttpStatus.SERVICE_UNAVAILABLE.value())
+			{
+				return new ModelAndView("redirect:/login?err=2");
+			}
+			else if (e.status() == HttpStatus.UNAUTHORIZED.value())
+			{
+				return new ModelAndView("redirect:/login?err=3");
+			}
+			else
+			{
+				return new ModelAndView("redirect:/login");
+			}
+		}
 	}
 
 	@GetMapping(path = "signup")
@@ -118,7 +179,20 @@ public class MikroServiceClientController
 			else
 			{
 				activityClient.sellSeat(Constants.TOKEN_PREFIX + bearer, basket.getActId());
-				payment.addObject("status", "Payment done, you bought the ticket");
+				payment.addObject("status", "Payment done, you bought the ticket. You will receive an email of the receipt.");
+				UserInfoPojo infoPojo = (UserInfoPojo) req.getSession().getAttribute(SessionConstants.USERPOJO);
+				// To simulate different routing keys reaching to same queue
+				if (infoPojo.getId() % 2 == 0)
+				{
+					// Make sure you have a converter bean defined somewhere to send custom classes
+					// The topic exchange listens for routing keys with a format
+					// Here it is "email.receipt.*" so "email.receipt.special" and "email.receipt.normal" will go to the same topic
+					template.convertAndSend(emailReceiptTopic.getName(), "email.receipt.special", infoPojo);
+				}
+				else
+				{
+					template.convertAndSend(emailReceiptTopic.getName(), "email.receipt.normal", infoPojo);
+				}
 			}
 		}
 		else
@@ -166,55 +240,38 @@ public class MikroServiceClientController
 		return eventdetails;
 	}
 
-	@PostMapping(path = "login")
-	public ModelAndView login(HttpServletRequest req)
-	{
-		String username = req.getParameter("username");
-		String password = req.getParameter("password");
-		// Quick and dirty way of creating the necessary object for spring security
-		// This is basically a json object, could have been mapped from spring security User class to json with jackson
-		// I'm lazy
-		String user = "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}";
-		System.err.println("Logging in");
-		String token = "";
-		try
-		{
-			// the response is determined by userservice
-			// you will implement some logic according to the return value
-			// it could be some entity inside the responseentity or a whole other data structure of your imagination
-			// just make sure this communication is documented somewhere
-			ResponseEntity<String> responseEntity = userClient.login(user);
-			token = responseEntity.getBody();
-			String bearer = token.substring(token.indexOf(" ") + 1);
-			user = token.substring(token.indexOf("(") + 1, token.indexOf(")"));
-			req.getSession().setAttribute(SessionConstants.BEARER, bearer);
-			req.getSession().setAttribute(SessionConstants.USERNAME, user);
-			return new ModelAndView("redirect:/index");
-		}
-		catch (FeignException e)
-		{
-			// Each exception must mean something different
-			// Throw them carefully from the services
-			if (e.status() == HttpStatus.SERVICE_UNAVAILABLE.value())
-			{
-				return new ModelAndView("redirect:/login?err=2");
-			}
-			else if (e.status() == HttpStatus.UNAUTHORIZED.value())
-			{
-				return new ModelAndView("redirect:/login?err=3");
-			}
-			else
-			{
-				return new ModelAndView("redirect:/login");
-			}
-		}
-	}
-
 	@GetMapping(path = "events")
 	public ModelAndView events()
 	{
 		List<ActivityPojo> activities = activityClient.getActivities().getBody();
 		ModelAndView events = new ModelAndView("events");
+		events.addObject("activities", activities);
+		return events;
+	}
+
+	@PostMapping(path = "admin")
+	public ModelAndView admin(HttpServletRequest req, @RequestParam(name = "actid") Integer actid)
+	{
+		String bearer = (String) req.getSession().getAttribute(SessionConstants.BEARER);
+		List<UserInfoPojo> resp = userClient.getAllUsers(Constants.TOKEN_PREFIX + bearer).getBody();
+		for (UserInfoPojo userInfoPojo : resp)
+		{
+			System.err.println(userInfoPojo.getEmail());
+			// correlationData is required with a unique identifier to be able to get ack info
+			CorrelationData correlationData = new CorrelationData(userInfoPojo.getId().toString());
+			// Cancelation email queue is bounded to a directexchange
+			// Meaning it will only accept exact matches of "email.cancelation"
+			// You just have to mention exchange name and the related binding, the rest is up to rabbitmq
+			template.convertAndSend(emailCancelationDirect.getName(), "email.cancelation", userInfoPojo, correlationData);
+		}
+		return new ModelAndView("redirect:/admin?canceled=" + actid);
+	}
+
+	@GetMapping(path = "admin")
+	public ModelAndView admin(@RequestParam(name = "canceled", required = false) Integer actid)
+	{
+		List<ActivityPojo> activities = activityClient.getActivities().getBody();
+		ModelAndView events = new ModelAndView("admin");
 		events.addObject("activities", activities);
 		return events;
 	}

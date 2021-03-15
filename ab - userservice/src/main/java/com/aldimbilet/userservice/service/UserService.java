@@ -1,5 +1,6 @@
 package com.aldimbilet.userservice.service;
 
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.User.UserBuilder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -44,5 +45,10 @@ public class UserService implements UserDetailsService
 	public ABUser findById(Long userId)
 	{
 		return userRepository.findById(userId);
+	}
+
+	public List<ABUser> getAllUsers()
+	{
+		return userRepository.getAllUsers();
 	}
 }

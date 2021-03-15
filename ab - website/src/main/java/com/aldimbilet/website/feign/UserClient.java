@@ -1,5 +1,6 @@
 package com.aldimbilet.website.feign;
 
+import java.util.List;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -54,4 +55,12 @@ public interface UserClient
 	// Userservice getUserCard method does not have token parameter, because it is transported inside header
 	@GetMapping(path = "getUserCard", consumes = MediaType.APPLICATION_JSON_VALUE)
 	ResponseEntity<CardInfoPojo> getUserCard(@RequestHeader(value = Constants.HEADER_STRING) String token, @RequestParam Long userId);
+
+	// The getAllUsers endpoint in the userservice returns ResponseEntity
+	// Your feign client methods must have the same return type and parameters and the http path
+	// Just like invoking a method in java
+	// path = localhost:4441/user/getAllUsers
+	// Userservice getAllUsers method does not have token parameter, because it is transported inside header
+	@GetMapping(path = "getAllUsers", consumes = MediaType.TEXT_PLAIN_VALUE)
+	ResponseEntity<List<UserInfoPojo>> getAllUsers(@RequestHeader(value = Constants.HEADER_STRING) String token);
 }

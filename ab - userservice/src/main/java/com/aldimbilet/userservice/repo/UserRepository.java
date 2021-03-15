@@ -1,5 +1,6 @@
 package com.aldimbilet.userservice.repo;
 
+import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.criteria.CriteriaBuilder;
@@ -55,6 +56,16 @@ public class UserRepository
 		criteria_query.where(builder.equal(root.get("id"), userId));
 		Query<ABUser> query = session.createQuery(criteria_query);
 		res = query.getSingleResult();
+		return res;
+	}
+
+	public List<ABUser> getAllUsers()
+	{
+		CriteriaBuilder builder = session.getCriteriaBuilder();
+		CriteriaQuery<ABUser> criteria_query = builder.createQuery(ABUser.class);
+		criteria_query.from(ABUser.class);
+		Query<ABUser> query = session.createQuery(criteria_query);
+		List<ABUser> res = query.getResultList();
 		return res;
 	}
 }

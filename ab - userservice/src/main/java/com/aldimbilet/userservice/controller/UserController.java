@@ -1,5 +1,7 @@
 package com.aldimbilet.userservice.controller;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
@@ -67,6 +69,21 @@ public class UserController
 		System.err.println("Found user info: " + pojo.toString());
 		ResponseEntity<UserInfoPojo> entity;
 		entity = new ResponseEntity<>(pojo, HttpStatus.OK);
+		return entity;
+	}
+
+	@GetMapping(path = "getAllUsers")
+	public ResponseEntity<List<UserInfoPojo>> getAllUsers()
+	{
+		System.err.println("This is get all users");
+		List<ABUser> user = userService.getAllUsers();
+		List<UserInfoPojo> infoPojos = new ArrayList<>();
+		for (ABUser abUser : user)
+		{
+			infoPojos.add(MapperUtils.convertABUserToUserInfoPojo(abUser));
+		}
+		ResponseEntity<List<UserInfoPojo>> entity;
+		entity = new ResponseEntity<>(infoPojos, HttpStatus.OK);
 		return entity;
 	}
 

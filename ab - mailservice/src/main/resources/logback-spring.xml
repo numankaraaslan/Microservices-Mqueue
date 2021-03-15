@@ -1,0 +1,15 @@
+<configuration debug="false">
+	<include resource="/org/springframework/boot/logging/logback/base.xml" />
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>My custom logger -> %msg%n</pattern>
+		</encoder>
+	</appender>
+	<root level="info">
+		<!-- Every logging inside the application above the info level -->
+		<!-- will use the STDOUT named appender with its special format -->
+		<!-- This is customizable for specific packages -->
+		<!-- It also supports different logging outputs like files -->
+		<appender-ref ref="STDOUT" />
+	</root>
+</configuration>

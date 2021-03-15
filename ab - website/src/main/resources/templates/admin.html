@@ -15,6 +15,7 @@
 		<span><a href="admin">Management</a></span>
 	</div>
 	<h1>All events</h1>
+	<label th:if="${param.canceled}" th:text="'The even with the id: ' + ${param.canceled[0]} + ' is canceled and an email is sent to users'"></label>
 	<div>
 		<table>
 			<thead>
@@ -27,7 +28,12 @@
 				<tr th:each="act : ${activities}">
 					<td><label th:text="${act.id}"></label></td>
 					<td><label th:text="${act.name}"></label></td>
-					<td><a th:href="@{'eventdetails?id=' + ${act.id}}">Buy</a></td>
+					<td>
+						<form th:action="@{'admin'}" method="post">
+							<input type="hidden" th:value="${act.id}" id="actid" name="actid">
+							<input type="submit" th:value = "cancelation">
+						</form>
+					</td>
 				</tr>
 			</tbody>
 		</table>
