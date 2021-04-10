@@ -85,7 +85,7 @@ public class RabbitConfig
 	{ "deadLetterExchange", "deadLetterQueue" })
 	public Binding emailCancelationBinding(@Value("deadLetterExchange") DirectExchange deadExchange, @Value("deadLetterQueue") Queue deadLetterQueue)
 	{
-		// DO NO FORGET "spring.rabbitmq.listener.simple.default-requeue-rejected=false" in the application.properties
+		// DO NO FORGET "spring.rabbitmq.listener.simple.default-requeue-rejected=false" in the application.properties of the receiver service !!
 		// Bind the deadLetterQueue to the deadLetterExchange with a routing key
 		// The exact messages "email.cancelation.deadletter" will be used in deadLetterExchange to bind it to deadLetterQueue
 		return BindingBuilder.bind(deadLetterQueue).to(deadExchange).with("email.cancelation.deadletter");
